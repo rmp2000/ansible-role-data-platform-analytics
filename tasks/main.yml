@@ -26,7 +26,7 @@
   ansible.builtin.file:
     path: '{{ item }}'
     state: directory
-    owner: data-platform-analytics
+    owner: "{{ 'root' if item.startswith('/etc/') else 'data-platform-analytics' }}"
     group: data-platform-analytics
     mode: '0750'
   loop:

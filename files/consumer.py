@@ -32,7 +32,7 @@ def normalize(payload):
     elif kind=='rejected':
         if not isinstance(value.get('reason'),str) or len(value['reason'])>4096:raise ValueError('invalid_rejection')
     else:raise ValueError('unknown_record_type')
-    names=('event_id','record_type','sensor','count','sum','mean','reason')
+    names=('event_id','record_type','reason') if kind=='rejected' else ('event_id','record_type','sensor','count','sum','mean')
     row={k:value[k] for k in names if k in value}
     row.update(payload_sha256=hashlib.sha256(payload).hexdigest(),payload=payload.decode('utf-8'))
     return row
@@ -51,7 +51,7 @@ class ClickHouse:
     def store(self,payload,message_key):
         digest=hashlib.sha256(payload).hexdigest()
         try:row=normalize(payload)
-        except (ValueError,TypeError,UnicodeError):
+        except (ValueError,TypeError,UnicodeError,OverflowError,RecursionError):
             self.reject(message_key,digest,payload,'invalid_processed_event')
             return 'quarantined'
         previous=self.query('SELECT payload_sha256 FROM analytics.events FINAL WHERE event_id={id:String} LIMIT 1',id=row['event_id']).strip()
