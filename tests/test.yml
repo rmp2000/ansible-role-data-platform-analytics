@@ -2,6 +2,7 @@
   connection: local
   become: true
   vars:
+    clickhouse_bind_address: "{{ ansible_default_ipv4.address }}"
     clickhouse_admin_password: ci-only-admin-password-1234567890
     clickhouse_writer_password: ci-only-writer-password-1234567890
     clickhouse_reader_password: ci-only-reader-password-1234567890
@@ -27,6 +28,8 @@
     ansible.builtin.include_role:
       name: data_platform_analytics
     vars:
+    clickhouse_bind_address: "{{ ansible_default_ipv4.address }}"
+      analytics_clickhouse_host: '{{ ansible_default_ipv4.address }}'
       analytics_clickhouse_password: '{{ clickhouse_writer_password }}'
       analytics_pulsar_token: '{{ ci_token.content | b64decode }}'
       analytics_pulsar_ca_pem: '{{ ci_pulsar_ca.content | b64decode }}'
