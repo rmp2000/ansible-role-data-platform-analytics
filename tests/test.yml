@@ -28,7 +28,6 @@
     ansible.builtin.include_role:
       name: data_platform_analytics
     vars:
-    clickhouse_bind_address: "{{ ansible_default_ipv4.address }}"
       analytics_clickhouse_host: '{{ ansible_default_ipv4.address }}'
       analytics_clickhouse_password: '{{ clickhouse_writer_password }}'
       analytics_pulsar_token: '{{ ci_token.content | b64decode }}'
