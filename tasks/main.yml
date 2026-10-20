@@ -1,0 +1,188 @@
+- name: Validate the analytics contract and private credentials
+  ansible.builtin.assert:
+    that:
+    - analytics_clickhouse_password | length >= 24
+    - analytics_pulsar_token | length > 20
+    - analytics_pulsar_ca_pem | length > 100
+    - analytics_clickhouse_ca_pem | length > 100
+    - analytics_subscription != 'dcache-ingest'
+  no_log: true
+- name: Install the Python virtual environment tools
+  ansible.builtin.apt:
+    name:
+    - python3-venv
+    - python3-pip
+    state: present
+    update_cache: true
+    cache_valid_time: 3600
+- name: Create the unprivileged analytic consumer
+  ansible.builtin.user:
+    name: data-platform-analytics
+    system: true
+    home: /var/lib/data-platform-analytics
+    create_home: false
+    shell: /usr/sbin/nologin
+- name: Create protected operational directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: data-platform-analytics
+    group: data-platform-analytics
+    mode: '0750'
+  loop:
+  - /var/lib/data-platform-analytics
+  - /etc/data-platform-analytics
+- name: Create the program and dataset directories
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  loop:
+  - /usr/local/lib/data-platform-analytics
+  - /usr/local/share/data-platform/fixtures
+- name: Install the pinned messaging client in its own environment
+  ansible.builtin.pip:
+    name: pulsar-client==3.13.0
+    virtualenv: /opt/data-platform-analytics
+    virtualenv_command: python3 -m venv
+    extra_args: --no-cache-dir
+- name: Install scoped credentials and trusted public certificates
+  ansible.builtin.copy:
+    content: '{{ item.content }}'
+    dest: /etc/data-platform-analytics/{{ item.name }}
+    owner: root
+    group: data-platform-analytics
+    mode: '0640'
+  loop:
+  - name: pulsar.token
+    content: '{{ analytics_pulsar_token }}'
+  - name: pulsar-ca.crt
+    content: '{{ analytics_pulsar_ca_pem }}'
+  - name: clickhouse-ca.crt
+    content: '{{ analytics_clickhouse_ca_pem }}'
+  no_log: true
+  notify: Restart data platform analytics
+- name: Configure the independent durable subscription and TLS target
+  ansible.builtin.copy:
+    content: '{{ {''broker_url'':''pulsar+ssl://'' ~ analytics_broker_host ~ '':6651'',''admin_url'':''https://'' ~ analytics_broker_host
+      ~ '':8443'',''pulsar_token_file'':''/etc/data-platform-analytics/pulsar.token'',''pulsar_ca'':''/etc/data-platform-analytics/pulsar-ca.crt'',''clickhouse_url'':''https://''
+      ~ analytics_clickhouse_host ~ '':8443'',''clickhouse_user'':''platform_writer'',''clickhouse_password'':analytics_clickhouse_password,''clickhouse_ca'':''/etc/data-platform-analytics/clickhouse-ca.crt'',''input_topic'':analytics_input_topic,''topic'':analytics_output_topic,''subscription'':analytics_subscription}
+      | to_nice_json }}'
+    dest: /etc/data-platform-analytics/config.json
+    owner: root
+    group: data-platform-analytics
+    mode: '0640'
+  no_log: true
+  notify: Restart data platform analytics
+- name: Install the consumer and reusable CSV publisher
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: /usr/local/lib/data-platform-analytics/{{ item }}
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+  - consumer.py
+  - publisher.py
+  notify: Restart data platform analytics
+- name: Install the attributed immutable demonstration dataset
+  ansible.builtin.copy:
+    src: '{{ item }}'
+    dest: /usr/local/share/data-platform/fixtures/{{ item }}
+    owner: root
+    group: root
+    mode: '0644'
+  loop:
+  - iris-measurements.csv
+  - provenance.json
+- name: Install the publisher CLI
+  ansible.builtin.copy:
+    content: '#!/bin/sh
+
+      exec /opt/data-platform-analytics/bin/python /usr/local/lib/data-platform-analytics/publisher.py "$@"
+
+      '
+    dest: /usr/local/bin/data-platform-publish
+    mode: '0755'
+- name: Install functional verification
+  ansible.builtin.copy:
+    src: verify.py
+    dest: /usr/local/bin/data-platform-analytics-verify
+    owner: root
+    group: root
+    mode: '0755'
+- name: Install the native analytic consumer service
+  ansible.builtin.copy:
+    content: '[Unit]
+
+      Description=Data platform independent Pulsar to ClickHouse consumer
+
+      After=network-online.target
+
+      Wants=network-online.target
+
+      [Service]
+
+      User=data-platform-analytics
+
+      Group=data-platform-analytics
+
+      Environment=PYTHONDONTWRITEBYTECODE=1
+
+      ExecStart=/opt/data-platform-analytics/bin/python /usr/local/lib/data-platform-analytics/consumer.py
+
+      Restart=on-failure
+
+      RestartSec=5
+
+      TimeoutStopSec=35
+
+      UMask=0027
+
+      PrivateTmp=true
+
+      ProtectSystem=strict
+
+      ProtectHome=true
+
+      NoNewPrivileges=true
+
+      ReadWritePaths=/var/lib/data-platform-analytics
+
+      [Install]
+
+      WantedBy=multi-user.target
+
+      '
+    dest: /etc/systemd/system/data-platform-analytics.service
+    mode: '0644'
+  notify: Restart data platform analytics
+- name: Apply the analytic consumer configuration
+  ansible.builtin.meta: flush_handlers
+- name: Start the analytic consumer at boot
+  ansible.builtin.systemd:
+    name: data-platform-analytics
+    state: started
+    enabled: true
+    daemon_reload: true
+- name: Verify exact storage duplicate rejection and invalid-event quarantine
+  ansible.builtin.command:
+    argv:
+    - /opt/data-platform-analytics/bin/python
+    - /usr/local/bin/data-platform-analytics-verify
+    - smoke
+  changed_when: false
+  when: analytics_verify | bool
+- name: Report end-to-end analytic storage success
+  ansible.builtin.debug:
+    msg: DATA_PLATFORM_ANALYTICS_OK
+  when: analytics_verify | bool
+- name: Optionally verify failed target writes and broker restart recovery
+  ansible.builtin.command:
+    argv:
+    - /opt/data-platform-analytics/bin/python
+    - /usr/local/bin/data-platform-analytics-verify
+    - recovery
+  when: analytics_test_recovery | bool

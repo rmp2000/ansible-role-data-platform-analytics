@@ -1,0 +1,10 @@
+galaxy_info:
+  role_name: data_platform_analytics
+  author: rmp2000
+  description: Independent durable Pulsar subscription with verified ClickHouse storage and deterministic CSV publication.
+  license: Apache-2.0
+  min_ansible_version: '2.15'
+  platforms:
+    - name: Ubuntu
+      versions: [jammy]
+dependencies: []

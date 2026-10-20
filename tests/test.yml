@@ -1,0 +1,33 @@
+- hosts: localhost
+  connection: local
+  become: true
+  vars:
+    clickhouse_admin_password: ci-only-admin-password-1234567890
+    clickhouse_writer_password: ci-only-writer-password-1234567890
+    clickhouse_reader_password: ci-only-reader-password-1234567890
+    apache_pulsar_token_secret: ci-only-pulsar-signing-secret-12345678901234567890
+  roles:
+  - clickhouse
+  - apache_pulsar
+  tasks:
+  - name: Read the scoped token
+    ansible.builtin.slurp:
+      src: /etc/apache-pulsar/client.token
+    register: ci_token
+    no_log: true
+  - name: Read the public Pulsar identity
+    ansible.builtin.slurp:
+      src: /etc/apache-pulsar/tls/server.crt
+    register: ci_pulsar_ca
+  - name: Read the public ClickHouse identity
+    ansible.builtin.slurp:
+      src: /etc/clickhouse-platform/tls/server.crt
+    register: ci_ch_ca
+  - name: Install and verify the independent analytics subscriber
+    ansible.builtin.include_role:
+      name: data_platform_analytics
+    vars:
+      analytics_clickhouse_password: '{{ clickhouse_writer_password }}'
+      analytics_pulsar_token: '{{ ci_token.content | b64decode }}'
+      analytics_pulsar_ca_pem: '{{ ci_pulsar_ca.content | b64decode }}'
+      analytics_clickhouse_ca_pem: '{{ ci_ch_ca.content | b64decode }}'

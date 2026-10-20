@@ -1,0 +1,24 @@
+name: Independent analytics subscriber verification
+on: [push, workflow_dispatch]
+jobs:
+  verify:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    env:
+      ANSIBLE_ROLES_PATH: ./roles
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: roles/data_platform_analytics
+      - run: pip install 'ansible==8.7.0'
+      - run: ansible-galaxy role install -r roles/data_platform_analytics/tests/requirements.yml -p roles
+      - name: Verify storage, conflicts, failed writes and broker recovery
+        run: ansible-playbook -b roles/data_platform_analytics/tests/test.yml -e analytics_test_recovery=true
+      - name: Verify ordinary idempotent reconfiguration
+        run: |
+          set -o pipefail
+          ansible-playbook -b roles/data_platform_analytics/tests/test.yml | tee /tmp/analytics-idempotence.log
+          grep -Eq 'changed=0[[:space:]]+unreachable=0[[:space:]]+failed=0' /tmp/analytics-idempotence.log
+      - name: Diagnostics
+        if: failure()
+        run: sudo journalctl -u data-platform-analytics -u clickhouse-server -u apache-pulsar --no-pager -n 90

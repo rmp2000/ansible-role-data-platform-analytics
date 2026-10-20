@@ -1,0 +1,5 @@
+- name: Restart data platform analytics
+  ansible.builtin.systemd:
+    name: data-platform-analytics
+    state: restarted
+    daemon_reload: true

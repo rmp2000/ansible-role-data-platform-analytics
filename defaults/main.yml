@@ -1,0 +1,11 @@
+analytics_broker_host: 127.0.0.1
+analytics_clickhouse_host: 127.0.0.1
+analytics_clickhouse_password: ''
+analytics_pulsar_token: ''
+analytics_pulsar_ca_pem: ''
+analytics_clickhouse_ca_pem: ''
+analytics_input_topic: persistent://platform/events/measurements
+analytics_output_topic: persistent://platform/events/data-platform
+analytics_subscription: clickhouse-analytics
+analytics_verify: true
+analytics_test_recovery: false

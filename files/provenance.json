@@ -1,0 +1,11 @@
+{
+  "dataset": "UCI Iris",
+  "source": "https://archive.ics.uci.edu/static/public/53/iris.zip",
+  "source_archive_sha256": "d11fe30213d36434a0879aab7cb00ce3c812eb7ba2495874438abff7b7b762e9",
+  "fixture_sha256": "6362d5b8733c634c979c10ef85a16a86b29add61f1f4867dffee6ef1c157893b",
+  "samples": 30,
+  "measurements": 120,
+  "selection": "Original rows 1-10, 51-60 and 101-110; four measurements per sample.",
+  "license": "CC BY 4.0",
+  "attribution": "Fisher, R. (1936). Iris. UCI Machine Learning Repository. https://doi.org/10.24432/C56C76"
+}

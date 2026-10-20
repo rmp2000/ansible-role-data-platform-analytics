@@ -1,0 +1,8 @@
+- name: clickhouse
+  src: https://github.com/rmp2000/ansible-role-clickhouse.git
+  scm: git
+  version: 7fcc22f1101c8e6f5b903c24cdcd653bb1aba174
+- name: apache_pulsar
+  src: https://github.com/rmp2000/ansible-role-apache-pulsar.git
+  scm: git
+  version: 4ab9ed0e54f19fa72843c72f86730abe747daff6
